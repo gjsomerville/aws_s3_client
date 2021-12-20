@@ -47,7 +47,7 @@ class ChunkTransformer implements StreamTransformer<List<int>, List<int>> {
   }
 
   void _onCancel() {
-    _subscription!.cancel();
+    _subscription?.cancel();
     _subscription = null;
   }
 

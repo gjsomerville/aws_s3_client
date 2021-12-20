@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http_client/console.dart' as http_client;
 import 'package:http/http.dart' as http;
 import 'package:xml/xml.dart' as xml;
@@ -106,9 +107,15 @@ class Bucket extends Client {
   }
 
   /// Uploads file stream. Returns Etag.
-  Future<String> uploadFileStream(String key, Stream<List<int>> fileStream,
-      int contentLength, String contentType, Permissions permissions,
-      {Map<String, String>? meta}) async {
+  Future<String> uploadFileStream(
+    String key,
+    Stream<List<int>> fileStream,
+    int contentLength,
+    String contentType,
+    Permissions permissions, {
+    Map<String, String>? meta,
+    ValueChanged<double>? progressListener,
+  }) async {
     bool isFirstChunk = true;
     String signature;
     String? prevSignature;
@@ -147,8 +154,9 @@ class Bucket extends Client {
 
     http.StreamedRequest request = http.StreamedRequest('PUT', uri);
     request.headers.addAll(headers);
-    final futureRequest = request.send();
 
+    final futureRequest = request.send();
+    int sent = 0;
     Future<String> sendChunkRequest(List<int> data) async {
       signature = calculateChunkedSignature(
         data,
@@ -163,6 +171,7 @@ class Bucket extends Client {
       request.sink.add(";chunk-signature=$signature\r\n".codeUnits);
       if (data.isNotEmpty) request.sink.add(data);
       request.sink.add("\r\n".codeUnits);
+
       if (data.isEmpty) {
         request.sink.close();
         final responseStream = await futureRequest;
@@ -186,11 +195,16 @@ class Bucket extends Client {
     }
 
     Future<dynamic> handleFileStream(Stream<List<int>> fileStream) {
-      late Future prevChunk;
+      Future? prevChunk;
 
       final completer = Completer();
       fileStream.listen((val) {
-        prevChunk = sendChunkRequestSync(val, prevChunk);
+        prevChunk = sendChunkRequestSync(val, prevChunk).whenComplete(() {
+          sent += val.length;
+          if (progressListener != null) {
+            progressListener(sent.toDouble() / contentLength.toDouble());
+          }
+        });
       }, onDone: () {
         sendChunkRequestSync([], prevChunk).then((etag) {
           completer.complete(etag);
@@ -200,8 +214,7 @@ class Bucket extends Client {
     }
 
     return await (handleFileStream(
-            fileStream.transform(ChunkTransformer(chunkSize: chunkSize)))
-        as FutureOr<String>);
+        fileStream.transform(ChunkTransformer(chunkSize: chunkSize))));
   }
 
   int calculateContentLengthWithMeta(int contentLength, int chunkSize) =>
