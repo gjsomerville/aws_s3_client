@@ -10,10 +10,10 @@ dependencies:
   meta: ^1.7.0
   crypto: ^3.0.1
   http_client: ^1.5.1
-  xml: ^5.3.1
-  http: ^0.13.4
+  xml: ^6.0.1
+  http: ^0.13.5
   path: ^1.8.0
-  mime: ^1.0.1
+  mime: ^1.0.2
 
 dev_dependencies:
   test: ^1.0.0
